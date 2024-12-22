@@ -1,28 +1,19 @@
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from threading import Thread
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandler, Filters
-
-# Dummy HTTP server to satisfy Render's port binding requirement
-class DummyHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"Bot is running!")
-
-def run_dummy_server():
-    port = int(os.environ.get("PORT", 8080))  # Default port is 8080
-    server = HTTPServer(("0.0.0.0", port), DummyHandler)
-    print(f"Dummy server running on port {port}")
-    server.serve_forever()
-
-
+import random
+from flask import Flask
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, Filters
 
 # Bot token and admin chat ID
 TOKEN = os.getenv("BOT_TOKEN")  # Ensure BOT_TOKEN is set in Render environment variables
-ADMIN_CHAT_ID = os.getenv("6481511626")  # Set your admin chat ID in Render environment variables
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # Set your admin chat ID in Render environment variables
+
+# Flask app for dummy server
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    return "Bot is running!"
 
 # Welcome Menu
 def start(update: Update, context: CallbackContext) -> None:
@@ -138,12 +129,11 @@ def main():
     # Message Handlers
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_user_message))
 
-    # Start Bot
+    # Start Polling in a separate thread
     updater.start_polling()
-    updater.idle()
 
-    # Start dummy HTTP server
-    run_dummy_server()
+    # Start the Flask server to keep the service alive
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 
 if __name__ == '__main__':
     main()
