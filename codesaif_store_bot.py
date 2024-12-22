@@ -1,82 +1,139 @@
 import os
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandler, Filters
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ParseMode
+)
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    CallbackContext,
+    MessageHandler,
+    Filters,
+    CallbackQueryHandler
+)
+import random
 
-# Bot token environment variable se fetch karein
+# Environment Variables
 TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_CHAT_ID = '6481511626'  # Replace with your actual Admin Chat ID
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # Set this as an environment variable
 
-# /start Command ka function
+# Welcome Menu
 def start(update: Update, context: CallbackContext) -> None:
+    keyboard = [
+        [InlineKeyboardButton("View Store", callback_data='view_store')],
+        [InlineKeyboardButton("Contact Admin", callback_data='contact_admin')],
+        [InlineKeyboardButton("FAQ", callback_data='faq')],
+        [InlineKeyboardButton("Support", callback_data='support')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(
-        "Welcome to Codesaif Store Bot!\n\n"
-        "Use /help to get a list of available commands.\n"
-        "Use /store to view our products."
+        "🤖 *Welcome to Codesaif Store Bot!*\n\nChoose an option below:",
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN
     )
 
-# /help Command ka function
-def help_command(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text(
-        "Here are some commands you can use:\n"
-        "/start - Start the bot\n"
-        "/help - Get help\n"
-        "/store - View store products\n"
-        "/contact - Get contact info"
+# View Store
+def view_store(update: Update, context: CallbackContext) -> None:
+    categories = ["E-books", "Courses", "Tools"]
+    keyboard = [[InlineKeyboardButton(cat, callback_data=f'category_{cat.lower()}')] for cat in categories]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.callback_query.message.reply_text(
+        "🛒 *Choose a category:*",
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN
     )
 
-# /store Command ka function
-def store(update: Update, context: CallbackContext) -> None:
+# Handle Product Categories
+def handle_categories(update: Update, context: CallbackContext) -> None:
+    category = update.callback_query.data.split("_")[1].capitalize()
+    products = [
+        {"name": f"{category} Product 1", "price": "$50", "link": "https://store.codesaif.in/product1"},
+        {"name": f"{category} Product 2", "price": "$100", "link": "https://store.codesaif.in/product2"},
+        {"name": f"{category} Product 3", "price": "$200", "link": "https://store.codesaif.in/product3"}
+    ]
+
+    for product in products:
+        keyboard = [[InlineKeyboardButton("Buy Now", url=product['link'])]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        update.callback_query.message.reply_text(
+            f"💼 *{product['name']}*\n💰 Price: {product['price']}",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+# FAQ Section
+def faq(update: Update, context: CallbackContext) -> None:
+    faq_text = (
+        "❓ *FAQs*\n\n"
+        "1. *How to Buy?*\nVisit the store and click 'Buy Now'.\n\n"
+        "2. *Refund Policy?*\nRefunds are available within 7 days.\n\n"
+        "3. *Contact Support?*\nUse /support to report an issue."
+    )
+    update.callback_query.message.reply_text(faq_text, parse_mode=ParseMode.MARKDOWN)
+
+# Support Ticket System
+def support(update: Update, context: CallbackContext) -> None:
+    ticket_id = f"SUP{random.randint(1000, 9999)}"
     update.message.reply_text(
-        "Welcome to our store! Here are our top products:\n\n"
-        "1. 1000+ course bundle - $10\n"
-        "2. premuim tools - $0\n"
-        "3. digital product store - view-store\n\n"
-        "For more details, visit our website: codesaif.in"
+        f"🎟️ *Support Ticket Created!*\n\nYour ticket ID is: `{ticket_id}`.\nOur team will contact you soon.",
+        parse_mode=ParseMode.MARKDOWN
     )
 
-# /contact Command ka function
-def contact(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text(
-        "You can reach us at:\n"
-        "Email: support@codesaif.in\n"
-        "Phone: +918750577291\n"
-        "Website: www.codesaif.in"
-    )
+# Handle User Messages
+def handle_user_message(update: Update, context: CallbackContext) -> None:
+    user_message = update.message.text.lower()
+    pre_defined_responses = {
+        "hi": "Hello! How can I assist you today?",
+        "hello": "Hi there! Need any help?",
+        "thanks": "You're welcome!",
+        "buy": "Check out our store here: https://store.codesaif.in"
+    }
 
-# Custom message handler for specific keywords
-def custom_message(update: Update, context: CallbackContext) -> None:
-    user_message = update.message.text.lower()  # User's message in lowercase
-    if 'hello' in user_message:
-        update.message.reply_text("Hello! How can I assist you today?")
-    elif 'help' in user_message:
-        update.message.reply_text("I can help you with:\n/start - Start the bot\n/store - View our products\n/contact - Get contact info")
+    if user_message in pre_defined_responses:
+        update.message.reply_text(pre_defined_responses[user_message])
     else:
-        update.message.reply_text("Sorry, I didn't understand that. Type 'help' for a list of commands.")
+        # Forward non-predefined messages to Admin
+        if ADMIN_CHAT_ID:
+            context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID,
+                text=f"📩 New Message from @{update.message.chat.username}:\n\n{user_message}"
+            )
+        update.message.reply_text(
+            "Your message has been forwarded to the admin. Please wait for a reply!"
+        )
 
-# Forward user messages to admin
-def forward_to_admin(update: Update, context: CallbackContext) -> None:
-    user_message = update.message.text
-    user_name = update.message.from_user.name
-    # Forward message to admin
-    context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"Message from {user_name}: {user_message}")
-    # Reply to user
-    update.message.reply_text("Your message has been forwarded to the admin.")
+# Callback Handlers
+def handle_callbacks(update: Update, context: CallbackContext) -> None:
+    query = update.callback_query
+    if query.data == "view_store":
+        view_store(update, context)
+    elif query.data.startswith("category_"):
+        handle_categories(update, context)
+    elif query.data == "faq":
+        faq(update, context)
+    elif query.data == "contact_admin":
+        query.message.reply_text(
+            "👤 *Contact Admin*\n\nSend your message directly, and we'll get back to you!"
+        )
 
-# Main function jo bot ko run karega
+# Main Function
 def main():
     updater = Updater(TOKEN, use_context=True)
     dispatcher = updater.dispatcher
 
-    # Commands ke liye handlers add karein
+    # Command Handlers
     dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(CommandHandler('help', help_command))
-    dispatcher.add_handler(CommandHandler('store', store))
-    dispatcher.add_handler(CommandHandler('contact', contact))
+    dispatcher.add_handler(CommandHandler('support', support))
 
-    # Custom message handling and forwarding to admin
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, custom_message))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_admin))
+    # Callback Handlers
+    dispatcher.add_handler(CallbackQueryHandler(handle_callbacks))
 
+    # Message Handlers
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_user_message))
+
+    # Start Bot
     updater.start_polling()
     updater.idle()
 
